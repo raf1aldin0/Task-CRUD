@@ -5,14 +5,16 @@ services:
     build: .
     container_name: task-crud-app
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=crud_db
+      - DB_PASSWORD=postgre
+      - DB_NAME=CRUD
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     ports:
@@ -26,17 +28,22 @@ services:
     restart: always
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: crud_db
+      POSTGRES_PASSWORD: postgre
+      POSTGRES_DB: CRUD
     ports:
       - "5432:5432"
     networks:
       - app_network
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d CRUD"]
+      interval: 5s
+      retries: 5
+      timeout: 3s  
 
   redis:
-    image: redis:latest
+    image: redis:6.2
     container_name: task-crud-redis
     restart: always
     ports:

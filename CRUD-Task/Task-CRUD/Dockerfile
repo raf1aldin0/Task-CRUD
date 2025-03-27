@@ -1,24 +1,26 @@
-# Gunakan image Golang terbaru
-FROM golang:1.21 AS builder
+# Stage 1: Build Golang Binary
+FROM golang:1.23 AS builder  
+# ✅ Versi Golang valid
 
-# Set working directory di dalam container
+# Set working directory
 WORKDIR /app
 
-# Copy semua file proyek ke dalam container
+# Copy semua file proyek
 COPY . .
 
 # Download dependencies
 RUN go mod tidy
 
-# Build aplikasi
-RUN go build -o main .
+# Compile Go binary (static build)
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o main ./cmd
 
-# Stage kedua: container runtime
-FROM debian:bullseye-slim
+# Stage 2: Runtime Container
+FROM debian:bullseye-slim  
+# ✅ Hanya satu stage runtime
 
 WORKDIR /root/
 
-# Copy binary dari stage builder
+# Copy binary dari tahap builder
 COPY --from=builder /app/main .
 
 # Expose port yang digunakan aplikasi

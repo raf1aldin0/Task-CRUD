@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -15,21 +16,21 @@ func main() {
 	// Load configuration
 	cfg := config.LoadConfig()
 
-	// Initialize PostgreSQL database
-db, err := config.InitPostgres(cfg)
-if err != nil {
-	log.Fatalf("Failed to initialize PostgreSQL: %v", err)
-}
-
-
-	// Initialize Redis
-	redisClient, err := config.InitRedis(cfg)
+	// Initialize PostgreSQL connection
+	db, err := config.InitPostgres(cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize Redis: %v", err)
+		log.Fatalf("❌ Gagal menginisialisasi PostgreSQL: %v", err)
 	}
+	defer func() {
+		if err := config.ClosePostgres(); err != nil {
+			log.Printf("⚠️ Gagal menutup koneksi database: %v", err)
+		} else {
+			log.Println("✅ Koneksi database ditutup dengan aman")
+		}
+	}()
 
 	// Initialize router
-	router := delivery.NewRouter(db, redisClient)
+	router := delivery.NewRouter(db)
 
 	// Setup HTTP server
 	server := &http.Server{
@@ -42,26 +43,26 @@ if err != nil {
 
 	// Start server in a separate goroutine
 	go func() {
-		log.Printf("🚀 Server is running on port %s...", cfg.ServerPort)
+		log.Printf("🚀 Server berjalan di port %s...", cfg.ServerPort)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server error: %v", err)
+			log.Fatalf("❌ Server error: %v", err)
 		}
 	}()
 
 	// Graceful shutdown handling
 	shutdownChan := make(chan os.Signal, 1)
-	signal.Notify(shutdownChan, os.Interrupt)
+	signal.Notify(shutdownChan, os.Interrupt, syscall.SIGTERM)
 
 	<-shutdownChan // Menunggu sinyal shutdown
-	log.Println("🛑 Shutting down server...")
+	log.Println("🛑 Menutup server...")
 
-	// Berikan waktu untuk menyelesaikan koneksi yang sedang berjalan
+	// Konteks dengan timeout 10 detik sebelum shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
-		log.Fatalf("Server shutdown failed: %v", err)
+		log.Fatalf("❌ Gagal menghentikan server: %v", err)
 	}
 
-	log.Println("✅ Server successfully stopped")
+	log.Println("✅ Server berhasil dimatikan dengan aman")
 }
